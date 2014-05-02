@@ -1,0 +1,81 @@
+#!/bin/sh
+#simple command for sparse-checkout
+
+# set this to workaround expr problems in shFlags on freebsd
+if uname -s | egrep -iq 'bsd'; then export EXPR_COMPAT=1; fi
+
+usage() {
+	echo "usage: git sparse"
+	echo "  prepare .gitsparse file before execute command."
+}
+
+main() {
+    local root=$(git rev-parse --show-toplevel)
+    cd $root
+    
+    # confirm file existence
+    local file=".gitsparse"
+    if [ ! -f "$file" ]
+    then
+        usage
+        exit 1
+    fi
+    
+    # set config
+    git config core.sparsecheckout true
+    
+    # delete existing sparse-checkout file
+    find .git/ -name "sparse-checkout" -exec rm -rf {} \;
+    
+    # read .gitsparse
+    local modules=""
+    while read line
+    do
+        # extract submodule. submodule and it's path is separated by :.
+        # ex: submodule:target/path/directory
+        local OIFS=$IFS;
+        IFS=':'
+        local arr=($line)        
+        IFS=$OIFS
+
+        local sparsefile=".git/info/sparse-checkout"
+        local target=$line
+        if [ ${#arr[@]} == 2 ]; then
+            #exist submodule , execute git config in submodule directory
+            local submodule=${arr[0]}
+            if [ -d "$submodule" ]; then
+                sparsefile=".git/modules/$submodule/info/sparse-checkout"
+                target=${arr[1]}
+                writeSparse $sparsefile $target
+                modules="$modules $submodule"
+            else
+                continue
+            fi
+        elif [ "$target" != "" ]; then
+            writeSparse $sparsefile $target
+            modules="$modules ."
+        fi
+    done < ${file}
+
+    # extract duplicate
+    local uniqmodules=($(printf '%s\n' $modules | sort -u))
+    for sm in "${uniqmodules[@]}"
+    do
+        cd ${sm}
+        git config core.sparsecheckout true
+        git read-tree -mu HEAD
+        cd $root
+    done
+    
+}
+
+writeSparse(){
+
+    if [ ! -f "$1" ]; then
+        touch $1
+    fi
+    echo $2 >> $1
+
+}
+
+main "$@"
