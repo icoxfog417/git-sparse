@@ -31,3 +31,6 @@ if you apply sparse-checkout to submodule, write as `<submodule name>:<target fo
 #### 2 execute command  
 Then , only you have to do is executing `git sparse`.
 
+#### Attention
+`.gitsparse` must be `utf-8` encoding **without BOM**.  
+`.gitsparse` must include more than 1 carriage return (crlf or lf).
